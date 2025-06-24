@@ -1,4 +1,6 @@
-"""测试配置文件"""
+"""测试配置文件
+根据测试路径自动选择加载原有代码或新代码的组件
+"""
 import os
 import sys
 import pytest
@@ -9,34 +11,60 @@ project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-# 导入所需的组件
-from src.utils.config_manager import config_manager
-from src.core.asr.model_manager import ASRModelManager
-from src.core.translation import TranslationManager
+def is_src_update_test(request):
+    """检查是否是新代码的测试"""
+    if request and request.module and request.module.__file__:
+        test_path = Path(request.module.__file__)
+        return "src_update" in str(test_path) or "unit/core" in str(test_path)
+    return False
+
+# 根据测试路径导入相应的组件
+def import_components(request):
+    if is_src_update_test(request):
+        # 新代码的测试，不需要导入旧组件
+        return None, None, None
+    else:
+        # 原有代码的测试，导入所需的组件
+        from src.utils.config_manager import config_manager
+        from src.core.asr.model_manager import ASRModelManager
+        from src.core.translation import TranslationManager
+        return config_manager, ASRModelManager, TranslationManager
 
 @pytest.fixture
-def config_manager():
+def config_manager(request):
     """配置管理器实例"""
-    return config_manager
+    old_config_manager, _, _ = import_components(request)
+    if old_config_manager:
+        return old_config_manager
+    # 新代码的测试会使用自己的 ConfigManager
+    return None
 
 @pytest.fixture
-def model_manager():
+def model_manager(request):
     """ASR模型管理器实例"""
-    return ASRModelManager()
+    _, ASRModelManager, _ = import_components(request)
+    if ASRModelManager:
+        return ASRModelManager()
+    # 新代码的测试会使用自己的模型管理器
+    return None
 
 @pytest.fixture
-def translation_manager():
+def translation_manager(request):
     """创建翻译管理器实例"""
-    # 使用测试专用的模型目录
-    config = {
-        'opus_mt': {
-            'model_dir': os.path.join('tests', 'models', 'translation', 'opus-mt', 'en-zh')
-        },
-        'argos': {
-            'model_dir': os.path.join('tests', 'models', 'translation', 'argos')
+    _, _, TranslationManager = import_components(request)
+    if TranslationManager:
+        # 使用测试专用的模型目录
+        config = {
+            'opus_mt': {
+                'model_dir': os.path.join('tests', 'models', 'translation', 'opus-mt', 'en-zh')
+            },
+            'argos': {
+                'model_dir': os.path.join('tests', 'models', 'translation', 'argos')
+            }
         }
-    }
-    return TranslationManager(config)
+        return TranslationManager(config)
+    # 新代码的测试会使用自己的翻译管理器
+    return None
 
 @pytest.fixture
 def test_text():
