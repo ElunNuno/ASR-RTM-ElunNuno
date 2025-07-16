@@ -60,7 +60,7 @@ class MainWindow(QMainWindow):
         # 预留更多事件...
 
     def _on_show_model_manager(self, *args, **kwargs):
-        from .model_manager_dialog import ModelManagerDialog
+        from .dialogs.model_manager_dialog import ModelManagerDialog
         dlg = ModelManagerDialog(self.event_bus, self)
         dlg.exec_()
 
@@ -88,8 +88,8 @@ class MainWindow(QMainWindow):
         # 兼容 PyQt5/6 的置顶写法
         try:
             self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-        except Exception:
-            pass
+        except AttributeError:
+            self.setWindowFlags(self.windowFlags())
 
     def _load_window_state(self):
         # 事件驱动+配置管理恢复窗口状态
@@ -125,6 +125,19 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         super().closeEvent(event)
+
+    def _update_menu_states(self):
+        """更新菜单项状态"""
+        # 文件菜单
+        self.menu_bar.file_menu.actions()[0].setEnabled(self.has_transcription)
+        
+        # 转录控制菜单
+        self.menu_bar.plugin_menu.actions()[0].setEnabled(not self.is_transcribing)
+        self.menu_bar.plugin_menu.actions()[1].setEnabled(self.is_transcribing)
+        self.menu_bar.plugin_menu.actions()[2].setEnabled(self.is_transcribing)
+        
+        # 设备菜单
+        self.menu_bar.model_menu.setEnabled(self.has_available_devices)
 
     # 预留：全部原版业务方法、对话框、配置、模型/插件管理等，均通过事件驱动集成
     # 如 self.event_bus.publish("open_model_manager")、self.event_bus.subscribe("model_list", ...)
